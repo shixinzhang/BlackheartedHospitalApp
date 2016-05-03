@@ -1,0 +1,23 @@
+{
+  "blackhospitals": [
+    {
+      "hospital": [
+        {
+          "city":"上海市",
+          "name":"上海市闵行区中医院",
+          "tel":"+86 21 5187 6888",
+          "homepage":"www.tcmmh.com"
+        }
+      ]
+    },{
+      "hospital": [
+        {
+          "city":"上海市",
+          "name":"上海市闵行区中医院",
+          "tel":"+86 21 5187 6888",
+          "homepage":"www.tcmmh.com"
+        }
+      ]
+    }
+  ]
+}
