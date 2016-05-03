@@ -24,6 +24,7 @@ import com.squareup.okhttp.Request;
 import net.sxkeji.blacksearch.adapters.CityRecyclerAdapter;
 import net.sxkeji.blacksearch.adapters.ProvinceRecyclerAdapter;
 import net.sxkeji.blacksearch.beans.BlackHospitalBean;
+import net.sxkeji.blacksearch.beans.BlackPutianBean;
 import net.sxkeji.blacksearch.beans.BlackhospitalsEntity;
 import net.sxkeji.blacksearch.beans.ProvincesBean;
 import net.sxkeji.blacksearch.beans.ProvincesListBean;
@@ -58,6 +59,7 @@ public class CitySelectTabActivity extends AppCompatActivity {
     private LinearLayoutManager linearLayoutManager;
     private ArrayList<ProvincesBean.CitysEntity> cityList;
     private ArrayList<ProvincesBean> allProvinceList;
+    private BlackPutianBean.BlackhospitalsEntity localHospitalList;   //本地保存的医院数据
     private ArrayList<TextView> selectProvinceTextViewList; //保存添加到"当前选择"的省份，为了准备以后的点击事件
     private ProvinceRecyclerAdapter provinceAdapter;
     private CityRecyclerAdapter cityAdapter;
@@ -65,6 +67,7 @@ public class CitySelectTabActivity extends AppCompatActivity {
     private List<BlackhospitalsEntity.HospitalEntity> selectHospitals;
     private String provinceStr; //选择的省份名称
     private String cityStr; //选择的城市名称
+    private BlackPutianBean blackPutianBean;        //另一种格式，本地的莆田医院数据
     private String url;
 
     @Override
@@ -88,10 +91,12 @@ public class CitySelectTabActivity extends AppCompatActivity {
             @Override
             public void done(List<AVObject> list, AVException e) {
                 if (e == null) {
-                    AVObject avObject = list.get(0);
-                    if (avObject != null)
-                        url = avObject.getString("url");
-                    getBlackHospitalData(url);
+                    if (list.size()>0) {
+                        AVObject avObject = list.get(0);
+                        if (avObject != null)
+                            url = avObject.getString("url");
+                        getBlackHospitalData(url);
+                    }
                     Log.e(TAG, "find success " + url);
                 } else {
                     Toast.makeText(CitySelectTabActivity.this, "查询失败" + e.toString(), Toast.LENGTH_SHORT).show();
@@ -181,14 +186,36 @@ public class CitySelectTabActivity extends AppCompatActivity {
      */
     private void searchHospital(ProvincesBean.CitysEntity cityBean) {
         selectHospitals = new ArrayList<>();
+        localHospitalList = new BlackPutianBean.BlackhospitalsEntity();
         String cityName = cityBean.getName();
-        if (blackHospitals != null) {
+        if (blackHospitals != null) {           //采用服务端数据
             for (BlackhospitalsEntity hospitalEntity : blackHospitals) {
                 List<BlackhospitalsEntity.HospitalEntity> hospitalList = hospitalEntity.getHospital();
                 for (BlackhospitalsEntity.HospitalEntity hospital : hospitalList) {
-                    if (cityName.equals(hospital.getCity())) {
+                    if (cityName.contains(hospital.getCity())) {
                         selectHospitals.add(hospital);
                         Log.e(TAG, "hospital " + hospital.getName());
+                    }
+                }
+            }
+        } else {         //采用本地数据
+            String allprovinces = FileUtil.readAssets(this, "putian.json");
+            if (!TextUtils.isEmpty(allprovinces)) {
+                Log.e(TAG, "read assets putian.json" + allprovinces.toString());
+                BlackPutianBean blackPutianBean = (BlackPutianBean) GsonUtil.jsonToBean(allprovinces, BlackPutianBean.class);
+                if (blackPutianBean != null) {
+                    List<BlackPutianBean.BlackhospitalsEntity> localBlackPutianList = blackPutianBean.getBlackhospitals();
+                    if (localBlackPutianList != null && localBlackPutianList.size() > 0) {
+                        for (BlackPutianBean.BlackhospitalsEntity localBlack : localBlackPutianList) {
+                            BlackPutianBean.BlackhospitalsEntity.HospitalEntity hospital = localBlack.getHospital();
+                            if (cityName.contains(hospital.getCity())) {
+                                localHospitalList = localBlack;
+                                return;
+                            }
+                        }
+
+                    } else {
+                        Log.e(TAG, "provincesList is null");
                     }
                 }
             }
@@ -201,44 +228,88 @@ public class CitySelectTabActivity extends AppCompatActivity {
      * @param cityBean
      */
     private void showHospital(ProvincesBean.CitysEntity cityBean) {
-        if (selectHospitals != null && selectHospitals.size() > 0) {
-            View view = ViewUtils.showPopupWindow(this, R.layout.pop_search_result, toolbar, 1);
-            TextView tvProvince = (TextView) view.findViewById(R.id.tv_province);
-            TextView tvCity = (TextView) view.findViewById(R.id.tv_city);
-            TextView tvCount = (TextView) view.findViewById(R.id.tv_count);
-            LinearLayout llHosputals = (LinearLayout) view.findViewById(R.id.ll_result);
-            tvProvince.setText(provinceStr);
-            tvCity.setText(cityStr);
-            tvCount.setText("共有 " + selectHospitals.size() + " 家");
-
-            for (BlackhospitalsEntity.HospitalEntity hospital : selectHospitals) {
-                View hospitalDetail = View.inflate(this, R.layout.item_hospital_detail, null);
-                TextView tvName = (TextView) hospitalDetail.findViewById(R.id.tv_name);
-                TextView tvWebSite = (TextView) hospitalDetail.findViewById(R.id.tv_website);
-                TextView tvtel = (TextView) hospitalDetail.findViewById(R.id.tv_tel);
-
-                String name = hospital.getName();
-                String tel = hospital.getTel();
-                String homepage = hospital.getHomepage();
-
-                if (!TextUtils.isEmpty(name)) {
-                    tvName.setText(name);
-                }
-                if (!TextUtils.isEmpty(tel)) {
-                    tvtel.setText(tel);
-                    tvtel.setAutoLinkMask(Linkify.PHONE_NUMBERS);
-                    tvtel.setMovementMethod(LinkMovementMethod.getInstance());
-                }
-                if (!TextUtils.isEmpty(homepage)) {
-                    tvWebSite.setText(homepage);
-                    tvWebSite.setAutoLinkMask(Linkify.ALL);
-                    tvWebSite.setMovementMethod(LinkMovementMethod.getInstance());
-                }
-
-                llHosputals.addView(hospitalDetail);
+        List<String> localHospital = null;
+        if (localHospitalList != null) {
+            if (localHospitalList.getHospital() != null) {
+                localHospital = localHospitalList.getHospital().getHospital();
             }
+        }
+        View view = ViewUtils.showPopupWindow(this, R.layout.pop_search_result, toolbar, 1);
+        TextView tvProvince = (TextView) view.findViewById(R.id.tv_province);
+        TextView tvCity = (TextView) view.findViewById(R.id.tv_city);
+        TextView tvCount = (TextView) view.findViewById(R.id.tv_count);
+        LinearLayout llHosputals = (LinearLayout) view.findViewById(R.id.ll_result);
+        tvProvince.setText(provinceStr);
+        tvCity.setText(cityStr);
+        if (selectHospitals != null && selectHospitals.size() > 0) {
+            tvCount.setText("共有 " + selectHospitals.size() + " 家");
+            setupPopViewWithNet(llHosputals, view);
+        } else if (localHospital != null && localHospital.size() > 0) {
+            tvCount.setText("共有 " + localHospital.size() + " 家");
+            setupPopViewWithLocal(llHosputals, view);
         } else {
             Toast.makeText(this, "恭喜你所在的城市没有莆田医院！", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * 使用本地的JSON格式数据填充
+     *
+     * @param llHosputals
+     * @param view
+     */
+
+    private void setupPopViewWithLocal(LinearLayout llHosputals, View view) {
+        List<String> hospitalList = localHospitalList.getHospital().getHospital();
+
+        for (String hospitalName : hospitalList) {
+            View hospitalDetail = View.inflate(this, R.layout.item_hospital_detail, null);
+            TextView tvName = (TextView) hospitalDetail.findViewById(R.id.tv_name);
+            TextView tvWebSite = (TextView) hospitalDetail.findViewById(R.id.tv_website);
+            TextView tvtel = (TextView) hospitalDetail.findViewById(R.id.tv_tel);
+
+            String name = hospitalName;
+
+            if (!TextUtils.isEmpty(name)) {
+                tvName.setText(name);
+            }
+
+            llHosputals.addView(hospitalDetail);
+        }
+    }
+
+    /**
+     * 使用服务器端的JSON格式数据填充数据
+     *
+     * @param llHosputals
+     * @param view
+     */
+    private void setupPopViewWithNet(LinearLayout llHosputals, View view) {
+        for (BlackhospitalsEntity.HospitalEntity hospital : selectHospitals) {
+            View hospitalDetail = View.inflate(this, R.layout.item_hospital_detail, null);
+            TextView tvName = (TextView) hospitalDetail.findViewById(R.id.tv_name);
+            TextView tvWebSite = (TextView) hospitalDetail.findViewById(R.id.tv_website);
+            TextView tvtel = (TextView) hospitalDetail.findViewById(R.id.tv_tel);
+
+            String name = hospital.getName();
+            String tel = hospital.getTel();
+            String homepage = hospital.getHomepage();
+
+            if (!TextUtils.isEmpty(name)) {
+                tvName.setText(name);
+            }
+            if (!TextUtils.isEmpty(tel)) {
+                tvtel.setText(tel);
+                tvtel.setAutoLinkMask(Linkify.PHONE_NUMBERS);
+                tvtel.setMovementMethod(LinkMovementMethod.getInstance());
+            }
+            if (!TextUtils.isEmpty(homepage)) {
+                tvWebSite.setText(homepage);
+                tvWebSite.setAutoLinkMask(Linkify.ALL);
+                tvWebSite.setMovementMethod(LinkMovementMethod.getInstance());
+            }
+
+            llHosputals.addView(hospitalDetail);
         }
     }
 
