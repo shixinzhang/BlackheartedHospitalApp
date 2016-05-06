@@ -3,7 +3,9 @@
 
 作为一个小程序猿，我能做的只有这么多了。 欢迎 pull request
 
-# [下载APP](http://fir.im/BlackHospitals)
+# 下载APP
+[酷安（不得不说这里的用户都很“高端”哈哈）](http://www.coolapk.com/apk/net.sxkeji.blacksearch)
+[fir.im](http://fir.im/BlackHospitals)
 
 # Update:
 2016-05-03 23:53
